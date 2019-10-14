@@ -1,0 +1,175 @@
+C51 COMPILER V9.59.0.0   I2C                                                               10/14/2019 21:18:13 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE I2C
+OBJECT MODULE PLACED IN i2c.OBJ
+COMPILER INVOKED BY: D:\software\Programming\C51\BIN\C51.EXE i2c.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          #include "i2c.h"
+   2          
+   3          #define  _Nop()  _nop_()  //定义空指令
+   4                                   
+   5          bit ack;                //应答标志位
+   6          
+   7          sbit SDA=P2^0;
+   8          sbit SCL=P2^1;
+   9          
+  10          #define AddWr 0x90   //写数据地址 
+  11          #define AddRd 0x91   //读数据地址
+  12          
+  13          void Start_I2c()
+  14          {
+  15   1        SDA=1;   //发送起始条件的数据信号
+  16   1        _Nop();
+  17   1        SCL=1;
+  18   1        _Nop();    //起始条件建立时间大于4.7us,延时
+  19   1        _Nop();
+  20   1        _Nop();
+  21   1        _Nop();
+  22   1        _Nop();    
+  23   1        SDA=0;     //发送起始信号
+  24   1        _Nop();    //起始条件锁定时间大于4μ
+  25   1        _Nop();
+  26   1        _Nop();
+  27   1        _Nop();
+  28   1        _Nop();       
+  29   1        SCL=0;    //钳住I2C总线，准备发送或接收数据
+  30   1        _Nop();
+  31   1        _Nop();
+  32   1      }
+  33          
+  34          void Stop_I2c()
+  35          {
+  36   1        SDA=0;    //发送结束条件的数据信号
+  37   1        _Nop();   //发送结束条件的时钟信号
+  38   1        SCL=1;    //结束条件建立时间大于4μ
+  39   1        _Nop();
+  40   1        _Nop();
+  41   1        _Nop();
+  42   1        _Nop();
+  43   1        _Nop();
+  44   1        SDA=1;    //发送I2C总线结束信号
+  45   1        _Nop();
+  46   1        _Nop();
+  47   1        _Nop();
+  48   1        _Nop();
+  49   1      }
+  50          
+  51          void  SendByte(unsigned char c)
+  52          {
+  53   1       unsigned char BitCnt;
+  54   1       
+  55   1       for(BitCnt=0;BitCnt<8;BitCnt++)  //要传送的数据长度为8位
+C51 COMPILER V9.59.0.0   I2C                                                               10/14/2019 21:18:13 PAGE 2   
+
+  56   1          {
+  57   2           if((c<<BitCnt)&0x80)SDA=1;   //判断发送位
+  58   2             else  SDA=0;                
+  59   2           _Nop();
+  60   2           SCL=1;               //置时钟线为高，通知被控器开始接收数据位
+  61   2            _Nop(); 
+  62   2            _Nop();             //保证时钟高电平周期大于4μ
+  63   2            _Nop();
+  64   2            _Nop();
+  65   2            _Nop();         
+  66   2           SCL=0; 
+  67   2          }
+  68   1          
+  69   1          _Nop();
+  70   1          _Nop();
+  71   1          SDA=1;               //8位发送完后释放数据线，准备接收应答位
+  72   1          _Nop();
+  73   1          _Nop();   
+  74   1          SCL=1;
+  75   1          _Nop();
+  76   1          _Nop();
+  77   1          _Nop();
+  78   1          if(SDA==1)ack=0;     
+  79   1             else ack=1;        //判断是否接收到应答信号
+  80   1          SCL=0;
+  81   1          _Nop();
+  82   1          _Nop();
+  83   1      }
+  84          
+  85          unsigned char  RcvByte()
+  86          {
+  87   1        unsigned char retc;
+  88   1        unsigned char BitCnt;
+  89   1        
+  90   1        retc=0; 
+  91   1        SDA=1;             //置数据线为输入方式
+  92   1        for(BitCnt=0;BitCnt<8;BitCnt++)
+  93   1            {
+  94   2              _Nop();           
+  95   2              SCL=0;       //置时钟线为低，准备接收数据位
+  96   2              _Nop();
+  97   2              _Nop();      //时钟低电平周期大于4.7us
+  98   2              _Nop();
+  99   2              _Nop();
+ 100   2              _Nop();
+ 101   2              SCL=1;       //置时钟线为高使数据线上数据有效
+ 102   2              _Nop();
+ 103   2              _Nop();
+ 104   2              retc=retc<<1;
+ 105   2              if(SDA==1)retc=retc+1; //读数据位,接收的数据位放入retc中
+ 106   2              _Nop();
+ 107   2              _Nop(); 
+ 108   2            }
+ 109   1        SCL=0;    
+ 110   1        _Nop();
+ 111   1        _Nop();
+ 112   1        return(retc);
+ 113   1      }
+ 114          
+ 115          void NoAck_I2c(void)
+ 116          {
+ 117   1        
+C51 COMPILER V9.59.0.0   I2C                                                               10/14/2019 21:18:13 PAGE 3   
+
+ 118   1        SDA=1;
+ 119   1        _Nop();
+ 120   1        _Nop();
+ 121   1        _Nop();      
+ 122   1        SCL=1;
+ 123   1        _Nop();
+ 124   1        _Nop();              //时钟低电平周期大于4μ
+ 125   1        _Nop();
+ 126   1        _Nop();
+ 127   1        _Nop();  
+ 128   1        SCL=0;                //清时钟线，钳住I2C总线以便继续接收
+ 129   1        _Nop();
+ 130   1        _Nop();    
+ 131   1      }
+ 132          
+ 133          unsigned char ReadADC(unsigned char Chl)
+ 134           {
+ 135   1         unsigned char Val;
+ 136   1         Start_I2c();               //启动总线
+ 137   1         SendByte(AddWr);             //发送器件地址
+ 138   1           if(ack==0)return(0);
+ 139   1         SendByte(0x40|Chl);            //发送器件子地址
+ 140   1           if(ack==0)return(0);
+ 141   1         Start_I2c();
+ 142   1         SendByte(AddWr+1);
+ 143   1            if(ack==0)return(0);
+ 144   1         Val=RcvByte();
+ 145   1         NoAck_I2c();                 //发送非应位
+ 146   1         Stop_I2c();                  //结束总线
+ 147   1        return(Val);
+ 148   1       }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    223    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

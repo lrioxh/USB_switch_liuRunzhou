@@ -1,0 +1,275 @@
+C51 COMPILER V9.59.0.0   MAIN                                                              10/14/2019 21:18:13 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: D:\software\Programming\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #include<stdio.h>
+   3          #include "delay.h"
+   4          #include "i2c.h"
+   5          
+   6          sbit k1=P2^4;
+   7          sbit k2=P2^5;
+   8          sbit k3=P2^6;
+   9          sbit k4=P2^7;
+  10          sbit red=P3^2;
+  11          sbit s3=P3^3;
+  12          sbit s4=P1^1;
+  13          sbit relay=P1^0;
+  14          
+  15          unsigned char table[]={
+  16          0xc0, 0xf9 ,0xa4, 0xb0, 0x99, 0x92, 0x82, 0xf8, 0x80, 0x90,0x88};
+  17          unsigned char datas[6];        //uart datas
+  18          char *a=&datas;
+  19          char i,j= 0;
+  20          unsigned char receive,m=0;
+  21          unsigned char q=110;
+  22          unsigned char rdata,midcur;
+  23          unsigned int crt,p=0;
+  24          unsigned char dec,hun,thou=0;
+  25          bit key,flag,man,autoon,infrared=0;
+  26          
+  27          unsigned long time_20ms,time,btn=0;      //定时器计数
+  28          float Acurrent=0.0;         //检测电流
+  29          
+  30          void Init_Timer0(void);
+  31          void uartSendStr(unsigned char *s);
+  32          void UART_Init(void);
+  33          void uartSendByte(unsigned char dat);
+  34          void Scankey();
+  35          void LED();
+  36          
+  37          
+  38          void main (void)
+  39          {
+  40   1        relay=1;  //off
+  41   1        man=0;    //延时标志有人
+  42   1        Init_Timer0();
+  43   1        UART_Init();
+  44   1        DelayMs(20);
+  45   1        while(1)
+  46   1        {
+  47   2          q++;
+  48   2          if(q>100){
+  49   3            q=0;
+  50   3            midcur=ReadADC(1);    //读取电流转化后的电压值
+  51   3            //DelayMs(5);
+  52   3          }
+  53   2      
+  54   2          Acurrent=(float)midcur*5.13/255;    //DA
+  55   2                              
+C51 COMPILER V9.59.0.0   MAIN                                                              10/14/2019 21:18:13 PAGE 2   
+
+  56   2          if(Acurrent>2.6)
+  57   2          {
+  58   3            //p=0;
+  59   3            Acurrent=(Acurrent-2.6)/0.184;
+  60   3          }
+  61   2          else
+  62   2          {
+  63   3            //p++;
+  64   3            Acurrent=0;
+  65   3          }
+  66   2          crt=Acurrent*100+0.5;
+  67   2          
+  68   2          if(crt<4){   //too low
+  69   3            p++;}      //delay
+  70   2          else if(crt>450){  //too high
+  71   3          relay=1;}
+  72   2          else{
+  73   3            p=0;
+  74   3          }
+  75   2          
+  76   2          if(p>30000){  //delay
+  77   3          relay=1;      //OFF
+  78   3            key=0;
+  79   3            p=0;
+  80   3          }
+  81   2          
+  82   2          if(flag==1){     //uart标志
+  83   3            TR0=1;
+  84   3            m=0;
+  85   3            man=0;
+  86   3            if(time_20ms/50>=time){  //记时延时
+  87   4              TR0=0;
+  88   4              flag=0;
+  89   4              relay=~relay;
+  90   4              time=0;
+  91   4              time_20ms=0;
+  92   4              if(relay==0){          //发送继电器情况
+  93   5              uartSendStr("ON!\n");}
+  94   4              else{uartSendStr("OFF!\n");}
+  95   4            }
+  96   3          }
+  97   2          if(infrared==1){   //红外使能
+  98   3          if(red==1&&man==0){  //检测无人且原本有人
+  99   4            m++;
+ 100   4            if(m>200){       //检测无人且维持一定时间
+ 101   5            man=1;}}         //确定无人
+ 102   3          if(red==0&&man==0){
+ 103   4            m=0;}
+ 104   3          if(red==0&&man==1&&relay==1){  //检测有人且原本无人且继电器关
+ 105   4            m++;
+ 106   4            if(m>4){       //delay
+ 107   5            m=0;
+ 108   5            man=0;
+ 109   5            autoon=1;   //自动开
+ 110   5            relay=0;}}  //on
+ 111   3          if(red==1&&autoon==1){
+ 112   4          relay=1;   //off
+ 113   4          man=0;
+ 114   4          autoon=0;}}   //自动关
+ 115   2          
+ 116   2          LED();
+ 117   2          Scankey();
+C51 COMPILER V9.59.0.0   MAIN                                                              10/14/2019 21:18:13 PAGE 3   
+
+ 118   2        }
+ 119   1      }
+ 120          
+ 121          
+ 122          void Init_Timer0(void)
+ 123          {
+ 124   1        TMOD=0x01;    //模式1，16位定时器
+ 125   1        TH0=0xb8;     //20ms
+ 126   1        TL0=0x00;
+ 127   1        EA=1;
+ 128   1        ET0=1;
+ 129   1      }
+ 130          
+ 131          void Timer0_isr(void) interrupt 1 
+ 132          {
+ 133   1        TH0=0xb8;
+ 134   1        TL0=0x00;
+ 135   1        
+ 136   1        time_20ms++;
+ 137   1      }
+ 138          
+ 139          
+ 140          void UART_Init(void)
+ 141          {
+ 142   1          SCON=0x50;
+ 143   1          TMOD|=0x20;
+ 144   1          TH1=0xFD;         //9600 波特率
+ 145   1          TL1=TH1;  
+ 146   1          TR1=1;           //timer 1                        
+ 147   1          EA=1;
+ 148   1          ES=1;
+ 149   1      }
+ 150          
+ 151          void uartSendByte(unsigned char dat)
+ 152          {
+ 153   1        unsigned char time_out;
+ 154   1        time_out=0x00;
+ 155   1        SBUF = dat;       //将数据放入SBUF中
+ 156   1        while((!TI)&&(time_out<50))  //检测是否发送出去
+ 157   1        {time_out++;DelayUs2x(10);} //未发送出去 进行短暂延时
+ 158   1        TI = 0;           //清除ti标志
+ 159   1      }
+ 160          
+ 161          
+ 162          void uartSendStr(unsigned char *s){
+ 163   1        while(*s!='\0')
+ 164   1        {
+ 165   2          uartSendByte(*s);  //单字节数据
+ 166   2          s++;
+ 167   2         }
+ 168   1      }
+ 169          
+ 170          void UART_SER (void) interrupt 4
+ 171          {
+ 172   1        if(RI)
+ 173   1        {
+ 174   2          RI = 0;
+ 175   2          receive= SBUF;
+ 176   2          rdata=receive-'0';//接收转数字
+ 177   2          for(j=0;j<5;j++){ //循环压入数组
+ 178   3          *(a+j)=*(a+j+1);}
+ 179   2          *(a+5)=rdata;     //最后一位直接压入数组
+C51 COMPILER V9.59.0.0   MAIN                                                              10/14/2019 21:18:13 PAGE 4   
+
+ 180   2          if(receive=='s'){ //传输完毕
+ 181   3            uartSendStr("Received!\n");
+ 182   3            time=datas[0]*10000+datas[1]*1000+datas[2]*100+datas[3]*10+datas[4];//转十进制数
+ 183   3            flag=1;
+ 184   3            for(j=0;j<6;j++){
+ 185   4          *(a+j)=0;}        //数组清零
+ 186   3            }
+ 187   2        }
+ 188   1        
+ 189   1        if(TI)
+ 190   1        {
+ 191   2           TI = 0;
+ 192   2          }
+ 193   1      }
+ 194          void Scankey(){
+ 195   1        if(s4==0){
+ 196   2          DelayMs(5);
+ 197   2          if(s4==0){
+ 198   3            P0=0xff;
+ 199   3            key=~key;
+ 200   3            man=0;
+ 201   3            while(!s4){
+ 202   4              btn++;
+ 203   4              if(btn>20000){  //长按
+ 204   5              btn=0;
+ 205   5              infrared=~infrared;
+ 206   5              autoon=0;
+ 207   5              if(infrared==0){ //发回红外情况
+ 208   6              uartSendStr("disabled!\n");}
+ 209   5              else{uartSendStr("enabled!\n");}
+ 210   5              while(!s4);
+ 211   5              }
+ 212   4            }
+ 213   3          }
+ 214   2        }
+ 215   1        if(s3==0){
+ 216   2          DelayMs(5);
+ 217   2          if(s3==0){
+ 218   3            P0=0xff;
+ 219   3            relay=~relay;
+ 220   3            man=0;
+ 221   3            while(!s3);
+ 222   3          }
+ 223   2        }
+ 224   1      }
+ 225            
+ 226          void LED(){
+ 227   1        dec=crt%10;
+ 228   1        hun=crt%100/10;
+ 229   1        thou=crt/100;
+ 230   1        //for(i=0;i<4;i++){
+ 231   1          P0=0xff;
+ 232   1        if(key==1){
+ 233   2              switch(i)
+ 234   2          {
+ 235   3            case 0: k1 =0;k2 =1;k3 =1;k4 =1;i++;P0=table[10];break;
+ 236   3            case 1: k1 =1;k2 =0;k3 =1;k4 =1;i++;P0=table[dec];break;
+ 237   3            case 2: k1 =1;k2 =1;k3 =0;k4 =1;i++;P0=table[hun];break;
+ 238   3            case 3: k1 =1;k2 =1;k3 =1;k4 =0;i=0;P0=table[thou]&0x7f;break;
+ 239   3          };
+ 240   2          DelayUs2x(25);
+ 241   2        }
+C51 COMPILER V9.59.0.0   MAIN                                                              10/14/2019 21:18:13 PAGE 5   
+
+ 242   1        //}
+ 243   1      }
+ 244          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1098    ----
+   CONSTANT SIZE    =     43    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     50       4
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      5    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

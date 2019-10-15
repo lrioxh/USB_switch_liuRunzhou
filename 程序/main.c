@@ -18,7 +18,7 @@ unsigned char datas[6];        //uart datas
 char *a=&datas;
 char i,j= 0;
 unsigned char receive,m=0;
-unsigned char q=110;
+unsigned char q=100;
 unsigned char rdata,midcur;
 unsigned int crt,p=0;
 unsigned char dec,hun,thou=0;

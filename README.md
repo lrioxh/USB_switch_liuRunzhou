@@ -3,7 +3,8 @@
 
 功能：蓝牙遥控，定时，检测电流，红外感应
 
-使用介绍移步instructions.docx
+使用介绍见 instructions.docx
+产品效果见 产品介绍.pptx
 
 
 更新日志：
